@@ -284,6 +284,9 @@ class CocoDataset(Dataset):
             proposal = None
 
         def prepare_single(img, scale, flip, proposal=None):
+            """
+                transform to predefined size and scale
+            """
             _img, img_shape, pad_shape, scale_factor = self.img_transform(
                 img, scale, flip)
             _img = to_tensor(_img)
