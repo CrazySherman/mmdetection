@@ -24,22 +24,22 @@ model = dict(
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
         use_sigmoid_cls=True),
-    # may be helpful to co-train with mask, RoI-bbox regressor/cls is a better learnable? 
-    # bbox_roi_extractor=dict(
-    #     type='SingleRoIExtractor',
-    #     roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
-    #     out_channels=256,
-    #     featmap_strides=[4, 8, 16, 32]),
-    # bbox_head=dict(           
-    #     type='SharedFCRoIHead',
-    #     num_fcs=2,
-    #     in_channels=256,
-    #     fc_out_channels=1024,
-    #     roi_feat_size=7,
-    #     num_classes=81,
-    #     target_means=[0., 0., 0., 0.],
-    #     target_stds=[0.1, 0.1, 0.2, 0.2],
-    #     reg_class_agnostic=False),
+   
+    bbox_roi_extractor=dict(
+        type='SingleRoIExtractor',
+        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
+        out_channels=256,
+        featmap_strides=[4, 8, 16, 32]),
+    bbox_head=dict(           
+        type='SharedFCRoIHead',
+        num_fcs=2,
+        in_channels=256,
+        fc_out_channels=1024,
+        roi_feat_size=7,
+        num_classes=2,
+        target_means=[0., 0., 0., 0.],
+        target_stds=[0.1, 0.1, 0.2, 0.2],
+        reg_class_agnostic=False),
     mask_roi_extractor=dict(
         type='SingleRoIExtractor',
         roi_layer=dict(type='RoIAlign', out_size=14, sample_num=2),
@@ -50,7 +50,7 @@ model = dict(
         num_convs=4,
         in_channels=256,
         conv_out_channels=256,
-        num_classes=81))
+        num_classes=2))         # ship/noship
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
