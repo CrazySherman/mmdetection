@@ -31,7 +31,7 @@ model = dict(
         out_channels=256,
         featmap_strides=[4, 8, 16, 32]),
     bbox_head=dict(           
-        type='SharedFCRoIHead',
+        type='SharedFCBBoxHead',
         num_fcs=2,
         in_channels=256,
         fc_out_channels=1024,
@@ -54,31 +54,36 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     rpn=dict(
-        pos_fraction=0.5,
-        pos_balance_sampling=False,
-        neg_pos_ub=256,
+        assigner=dict(
+            pos_iou_thr=0.7,
+            neg_iou_thr=0.3,
+            min_pos_iou=0.3,
+            ignore_iof_thr=-1),
+        sampler=dict(
+            num=256,
+            pos_fraction=0.5,
+            neg_pos_ub=-1,
+            add_gt_as_proposals=False,
+            pos_balance_sampling=False,
+            neg_balance_thr=0),
         allowed_border=0,
-        crowd_thr=1.1,
-        anchor_batch_size=256,
-        pos_iou_thr=0.7,
-        neg_iou_thr=0.3,
-        neg_balance_thr=0,
-        min_pos_iou=0.3,
         pos_weight=-1,
         smoothl1_beta=1 / 9.0,
         debug=False),
     rcnn=dict(
+        assigner=dict(
+            pos_iou_thr=0.5,
+            neg_iou_thr=0.5,
+            min_pos_iou=0.5,
+            ignore_iof_thr=-1),
+        sampler=dict(
+            num=512,
+            pos_fraction=0.25,
+            neg_pos_ub=-1,
+            add_gt_as_proposals=True,
+            pos_balance_sampling=False,
+            neg_balance_thr=0),
         mask_size=28,
-        pos_iou_thr=0.5,
-        neg_iou_thr=0.5,
-        crowd_thr=1.1,
-        roi_batch_size=512,
-        add_gt_as_proposals=True,
-        pos_fraction=0.25,
-        pos_balance_sampling=False,
-        neg_pos_ub=512,
-        neg_balance_thr=0,
-        min_pos_iou=0.5,
         pos_weight=-1,
         debug=False))
 test_cfg = dict(
@@ -92,7 +97,7 @@ test_cfg = dict(
     rcnn=dict(
         score_thr=0.05, max_per_img=100, nms_thr=0.5, mask_thr_binary=0.5))
 # dataset settings
-dataset_type = 'AirBusKaggle'
+dataset_type = 'AirbusKaggle'
 data_root = '/data/airbus/'
 
 # this is imagenet pretrained params
@@ -100,8 +105,9 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
 data = dict(
-    imgs_per_gpu=2,
-    workers_per_gpu=2,
+    # 12GB memory can tolerate
+    imgs_per_gpu=4,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         #TODO figure this out, MaskCNN uplift the resolution for a reason
@@ -118,8 +124,8 @@ data = dict(
         flip_ratio=0)
    )
 # optimizer
-#figure out learning rate...one GPU should be 0.002
-optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=0.0001)
+#figure out learning rate...one GPU should be 0.002 from their official benchmark
+optimizer = dict(type='SGD', lr=0.004, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
 lr_config = dict(

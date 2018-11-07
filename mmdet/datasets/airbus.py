@@ -5,6 +5,7 @@ from mmcv.parallel import DataContainer as DC
 from pycocotools.coco import COCO
 from torch.utils.data import Dataset
 import logging
+import random
 
 from .transforms import (ImageTransform, BboxTransform, MaskTransform,
                          Numpy2Tensor)
@@ -136,7 +137,7 @@ class AirbusKaggle(Dataset):
                 test_mode=False
                 ):
        
-        logging.info('starting scanning data root: ', data_root)
+        print('starting scanning data root: ', data_root)
         if test_mode:
             self.img_root, self.img_ids = self.get_all_test_image_ids(data_root)
         else:
@@ -170,7 +171,7 @@ class AirbusKaggle(Dataset):
         self.img_scales = img_scale if isinstance(img_scale,
                                                   list) else [img_scale]
         # # set group flag for the sampler 
-        # self._set_group_flag()
+        self._set_group_flag()
         
         print('Airbus Dataset Summary \n'
             '\ttest_mode: {} \n'
@@ -200,7 +201,8 @@ class AirbusKaggle(Dataset):
         mask = self.masks[image_id]
         # generate masks and boxes from a single mask for that image
         bboxes, masks = get_boxes_and_masks(mask)
-        gt_bboxes = np.asarray(bboxes)
+        # this is needed because the interface requires FloatTensor
+        gt_bboxes = np.asarray(bboxes, dtype=np.float32)
 
         assert len(gt_bboxes) > 0, 'this training image has no boxes/masks'
 
@@ -225,30 +227,33 @@ class AirbusKaggle(Dataset):
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
                 flip=flip)
+        
         data = dict(
-                img=img,
-                img_meta= img_meta,
+                img=DC(to_tensor(img), stack=True),
+                img_meta=DC(img_meta, cpu_only=True),
                 gt_bboxes=DC(to_tensor(gt_bboxes)),
-                gt_labels= None,
+		# no ignored boxes
+		gt_bboxes_ignore=DC(to_tensor([])),
+		# bboxes are all 1 labeled
+                gt_labels= DC(to_tensor(np.ones(len(gt_bboxes), dtype=int))),
                 gt_masks= DC(gt_masks, cpu_only=True)
             )
         return data
 
     def __len__(self):
         return len(self.img_ids)
-    
-    # def _set_group_flag(self):
- #        """Set flag according to image aspect ratio.
+   
+    def _set_group_flag(self):
+        """Set flag according to image aspect ratio.
 
- #        Images with aspect ratio greater than 1 will be set as group 1,
- #        otherwise group 0.
- #        """
- #        self.flag = np.zeros(len(self.img_ids), dtype=np.uint8)
- #        for i in range(len(self.img_ids)):
- #            img_info = self.img_infos[i]
- #            if img_info['width'] / img_info['height'] > 1:
- #                self.flag[i] = 1
-
+        because in airbus dataset all images are in the same aspect ratio, 
+        we'll just assign groups randomly
+        """
+        self.flag = np.zeros(len(self.img_ids), dtype=np.uint8)
+        for i in range(len(self.img_ids)):
+           self.flag[i] = random.choice([0,1])
+        logging.info('finished up set group flag')
+ 
     # during training, remove the images without gt
     def _filter_images(self):
         bad_image_ids = self.masks.get_no_ship_image_ids()
