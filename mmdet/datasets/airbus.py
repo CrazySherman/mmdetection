@@ -207,8 +207,11 @@ class AirbusKaggle(Dataset):
         image_id = self.img_ids[idx]
         mask = self.masks[image_id]
         # generate masks and boxes from a single mask for that image
-        bboxes, masks = get_boxes_and_masks(mask)
-
+        if masks:
+            bboxes, masks = get_boxes_and_masks(mask)
+        else:
+            # this in evaluation mode, masks could be none
+            masks = None
         # for val mode, return just image and mask groundtruth
         if self.val_mode:
             return self.prepare_val_img(idx, masks)
@@ -275,7 +278,7 @@ class AirbusKaggle(Dataset):
         print('Image Count after filtering: ', len(self))
 
     def prepare_test_img(self, idx):
-        img = mmcv.imread(os.path.join(self.img_root, img_ids[idx]))
+        img = mmcv.imread(os.path.join(self.img_root, self.img_ids[idx]))
         ori_shape = img.shape
         def prepare_single(img, scale, flip, proposal=None):
             """
@@ -321,13 +324,13 @@ class AirbusKaggle(Dataset):
         data = dict(img=imgs, img_meta=img_metas)
         return data
 
-    def prepare_val_img(self, idx):
+    def prepare_val_img(self, idx, masks):
         """
            return a list of images and ground truth masks to be predicted
         """
-        img = mmcv.imread(os.path.join(self.img_root, img_ids[idx]))
+        img = mmcv.imread(os.path.join(self.img_root, self.img_ids[idx]))
         ori_shape = img.shape
-        def prepare_single(img, scale, flip, gt_masks):
+        def prepare_single(img, scale, flip, _masks):
             """
                 transform to predefined size and scale
             """
@@ -340,8 +343,8 @@ class AirbusKaggle(Dataset):
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
                 flip=flip)
-           
-            _gt_masks = self.mask_transform(gt_masks, img_shape,
+            if _masks:
+                _gt_masks = self.mask_transform(_masks, img_shape,
                                                 scale_factor, flip)
     
             return _img, _img_meta, _gt_masks
@@ -356,7 +359,7 @@ class AirbusKaggle(Dataset):
             img_metas.append(DC(_img_meta, cpu_only=True))
             if self.flip_ratio > 0:
                 _img, _img_meta, _gt_masks = prepare_single(
-                    img, scale, True, proposal)
+                    img, scale, True, masks)
                 imgs.append(_img)
                 img_metas.append(DC(_img_meta, cpu_only=True))
                 gt_masks.append(_gt_masks)
