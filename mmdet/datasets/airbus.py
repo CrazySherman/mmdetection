@@ -207,7 +207,7 @@ class AirbusKaggle(Dataset):
         image_id = self.img_ids[idx]
         mask = self.masks[image_id]
         # generate masks and boxes from a single mask for that image
-        if masks:
+        if mask:
             bboxes, masks = get_boxes_and_masks(mask)
         else:
             # this in evaluation mode, masks could be none
@@ -343,6 +343,8 @@ class AirbusKaggle(Dataset):
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
                 flip=flip)
+            # no masks 
+            _gt_masks = []
             if _masks:
                 _gt_masks = self.mask_transform(_masks, img_shape,
                                                 scale_factor, flip)
@@ -354,7 +356,7 @@ class AirbusKaggle(Dataset):
         gt_masks = []
         for scale in self.img_scales:
             _img, _img_meta, _gt_masks = prepare_single(
-                img, scale, False)
+                img, scale, False, masks)
             imgs.append(_img)
             img_metas.append(DC(_img_meta, cpu_only=True))
             if self.flip_ratio > 0:
