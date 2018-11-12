@@ -114,7 +114,7 @@ class MaskLoader:
     def _get_mask_from_rle(self, imageId):
         mask = self.masks_rle.loc[self.masks_rle['ImageId'] == imageId, 'EncodedPixels'].dropna().tolist()
         if len(mask) == 0:
-            logging.warning('trying to get an empty ship mask')
+            #logging.warning('trying to get an empty ship mask')
             return None
         res = np.zeros((768, 768))
         for m in mask:
@@ -181,13 +181,14 @@ class AirbusKaggle(Dataset):
         self._set_group_flag()
         
         print('Airbus Dataset Summary \n'
-            '\ttest_mode: {} \n'
+            '\ttest_mode: {} | val mode: {}\n'
             '\timg_norm_cfg: {} \n'
             '\tsize_divisor: {} \n'
             '\tflip_ratio: {} \n'
             '\timage_scales: {} \n'
             .format(
                 self.test_mode,
+                self.val_mode,
                 self.img_norm_cfg,
                 self.size_divisor,
                 self.flip_ratio,
@@ -207,7 +208,7 @@ class AirbusKaggle(Dataset):
         image_id = self.img_ids[idx]
         mask = self.masks[image_id]
         # generate masks and boxes from a single mask for that image
-        if mask:
+        if mask is not None:
             bboxes, masks = get_boxes_and_masks(mask)
         else:
             # this in evaluation mode, masks could be none
@@ -336,19 +337,19 @@ class AirbusKaggle(Dataset):
             """
             _img, img_shape, pad_shape, scale_factor = self.transform(
                 img, scale, flip)
-            _img = to_tensor(_img)
-            _img_meta = dict(
+            _img = to_tensor(_img).unsqueeze(0)
+            _img_meta = [dict(
                 ori_shape=ori_shape,
                 img_shape=img_shape,
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
-                flip=flip)
-            # no masks 
+                flip=flip)]
             _gt_masks = []
+            # if input is None, then this is a no ship image
             if _masks:
-                _gt_masks = self.mask_transform(_masks, img_shape,
-                                                scale_factor, flip)
-    
+                # seems like inference module already re-transformed the output masks
+                #_gt_masks = self.mask_transform(_masks, img_shape, scale_factor, flip)
+                _gt_masks = _masks
             return _img, _img_meta, _gt_masks
 
         imgs = []
@@ -358,12 +359,13 @@ class AirbusKaggle(Dataset):
             _img, _img_meta, _gt_masks = prepare_single(
                 img, scale, False, masks)
             imgs.append(_img)
-            img_metas.append(DC(_img_meta, cpu_only=True))
+            img_metas.append(_img_meta)
+            gt_masks.append(_gt_masks)
             if self.flip_ratio > 0:
                 _img, _img_meta, _gt_masks = prepare_single(
                     img, scale, True, masks)
                 imgs.append(_img)
-                img_metas.append(DC(_img_meta, cpu_only=True))
+                img_metas.append(_img_meta)
                 gt_masks.append(_gt_masks)
 
         data = dict(img=imgs, img_meta=img_metas)

@@ -7,7 +7,7 @@ from mmcv.runner import Runner, DistSamplerSeedHook
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 
 from mmdet.core import (DistOptimizerHook, CocoDistEvalRecallHook,
-                        CocoDistEvalmAPHook)
+                        CocoDistEvalmAPHook, AirbusEvalF2ScoreHook)
 from mmdet.datasets import build_dataloader
 from mmdet.models import RPN
 from .env import get_root_logger
@@ -112,7 +112,8 @@ def _non_dist_train(model, dataset, cfg, validate=False):
     if validate:
         # only this shit is supported at non-dist training mode
         assert cfg.data.val.type == 'AirbusKaggle'
-        runner.register_hook(AirbusKaggle(cfg.data.val, cfg.val_interval))
+        print('registering airbus evaluation hook with interval: ', cfg.val_interval)
+        runner.register_hook(AirbusEvalF2ScoreHook(cfg.data.val, cfg.val_interval))
 
     if cfg.resume_from:
         runner.resume(cfg.resume_from)

@@ -128,14 +128,14 @@ data = dict(
 #figure out learning rate...one GPU should be 0.002 from their official benchmark
 optimizer = dict(type='SGD', lr=0.004, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-val_interval = 10
+val_interval = 4000
 # learning policy
 lr_config = dict(
     policy='step',
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    step=[4, 5])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -146,11 +146,11 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-#try out epoch nums
-total_epochs = 12
+# this dataset converges much faster than coco, 5 epochs are good enough
+total_epochs = 5
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/airbus_mask_rcnn_r50_fpn_1x'
 load_from = None
-resume_from = None
+resume_from = './airbus_r1/epoch_3.pth'
 workflow = [('train', 1)]

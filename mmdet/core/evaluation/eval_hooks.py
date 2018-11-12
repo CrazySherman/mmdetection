@@ -162,6 +162,11 @@ def get_score(pred, true):
     thresholds = [0.5 + 0.05*i for i in range(n_th)]
     n_masks = len(true)
     n_pred = len(pred)
+    # if any of the masks are 0, it's either 0/1 score
+    if n_pred == 0 and n_masks == 0:
+        return 1
+    elif n_pred == 0 or n_masks == 0:
+        return 0
     ious = []
     score = 0
     for mask in true:
@@ -200,14 +205,13 @@ class AirbusEvalF2ScoreHook(Hook):
                 'dataset must be a Dataset object or a dict, not {}'.format(
                     type(dataset)))
         self.interval = interval
-        self.dataset = dataset
 
-    def after_train_iter(self, runner, n):
+    def after_train_iter(self, runner):
         """
             after <interval> iterations, run eval
         """
         if self.every_n_inner_iters(runner, self.interval):
-            #do the fucking evaluation
+            runner.logger.info('starting evaluation')
             runner.model.eval()
             scores = []
             prog_bar = mmcv.ProgressBar(len(self.dataset))
@@ -220,22 +224,20 @@ class AirbusEvalF2ScoreHook(Hook):
                 assert type(gt_masks) == list
                 # evaluate on each image in batch
                 # assert batch size of input - output are aligned 
-                assert len(gt_masks) == len(results[1])
+                assert len(gt_masks) == len(result[1]), '{} vs {}'.format(len(gt_masks), len(result[1]))
                 for i, mask_res in enumerate(result[1]):
                     if len(gt_masks[i]) == 0:
                         num_empty_ships += 1
                     # result structure:
-                    pred_masks_rle = list(chain.from_iterable(mask_res))
+                    pred_masks_rle = mask_res
                     if len(pred_masks_rle) == 0:
                         num_pred_empty_ships += 1
-                    else:
-                        assert type(pred_masks_rle[0]) == str
 
                     pred_masks = [mask_util.decode(m) for m in pred_masks_rle]
                     scores.append(get_score(pred_masks, gt_masks[i]))
                 # cur batch has finished
                 prog_bar.update()
 
-            runner.logger.info('finshed evaluation on {} number of images; empty ships: {}'.format(len(scores), num_empty_ships))
+            runner.logger.info('finshed evaluation on {} number of images; empty ships: {}; pred empty ships: {}'.format(len(scores), num_empty_ships, num_pred_empty_ships))
             runner.logger.info('evaluation score: {}'.format(np.array(scores).mean()))
 
