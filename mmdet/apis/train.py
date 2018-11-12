@@ -109,6 +109,10 @@ def _non_dist_train(model, dataset, cfg, validate=False):
                     cfg.log_level)
     runner.register_training_hooks(cfg.lr_config, cfg.optimizer_config,
                                    cfg.checkpoint_config, cfg.log_config)
+    if validate:
+        # only this shit is supported at non-dist training mode
+        assert cfg.data.val.type == 'AirbusKaggle'
+        runner.register_hook(AirbusKaggle(cfg.data.val, cfg.val_interval))
 
     if cfg.resume_from:
         runner.resume(cfg.resume_from)

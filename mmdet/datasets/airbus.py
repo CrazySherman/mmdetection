@@ -134,14 +134,19 @@ class AirbusKaggle(Dataset):
     def __init__(self, img_scale, data_root, img_norm_cfg,
                 flip_ratio=0,
                 size_divisor=None,
-                test_mode=False
+                test_mode=False,
+                val_mode=False
                 ):
        
         print('starting scanning data root: ', data_root)
+        print('test mode: ', test_mode)
+        print('val mode: ', val_mode)
+        self.test_mode = test_mode
+        self.val_mode = val_mode
         if test_mode:
             self.img_root, self.img_ids = self.get_all_test_image_ids(data_root)
         else:
-            self.img_root, self.img_ids = self.get_all_train_image_ids(data_root)
+            self.img_root, self.img_ids = self.get_train_or_val_image_ids(data_root)
 
         # MaskLoader as the proxy for panda processing
         # boxes also come from masks
@@ -150,12 +155,14 @@ class AirbusKaggle(Dataset):
 
 
         # filter images with no ships, this important otherwise get(idx) will return null to dataloader
-        if not test_mode:
+        if not test_mode and not val_mode:
             logging.info('train mode, start filtering empty ship images...')
             self._filter_images()
-        else:
-            logging.info('this is test mode')
-        self.test_mode = test_mode
+        if val_mode:
+            all_bad_img_ids = self.masks.get_no_ship_image_ids()
+            bad_image_ids = [i for i in self.img_ids if  i in all_bad_img_ids]
+            print('Number of images with no ships: ', len(bad_image_ids))
+        
         # color channel order and normalize configs
         self.img_norm_cfg = img_norm_cfg
         
@@ -201,6 +208,11 @@ class AirbusKaggle(Dataset):
         mask = self.masks[image_id]
         # generate masks and boxes from a single mask for that image
         bboxes, masks = get_boxes_and_masks(mask)
+
+        # for val mode, return just image and mask groundtruth
+        if self.val_mode:
+            return self.prepare_val_img(idx, masks)
+
         # this is needed because the interface requires FloatTensor
         gt_bboxes = np.asarray(bboxes, dtype=np.float32)
 
@@ -309,10 +321,69 @@ class AirbusKaggle(Dataset):
         data = dict(img=imgs, img_meta=img_metas)
         return data
 
-    def get_all_train_image_ids(self, data_root):
-        imgs = os.listdir(os.path.join(data_root, 'train_v2'))
-        print('Train images are like: ', imgs[:10])
-        return os.path.join(data_root, 'train_v2'), imgs
+    def prepare_val_img(self, idx):
+        """
+           return a list of images and ground truth masks to be predicted
+        """
+        img = mmcv.imread(os.path.join(self.img_root, img_ids[idx]))
+        ori_shape = img.shape
+        def prepare_single(img, scale, flip, gt_masks):
+            """
+                transform to predefined size and scale
+            """
+            _img, img_shape, pad_shape, scale_factor = self.transform(
+                img, scale, flip)
+            _img = to_tensor(_img)
+            _img_meta = dict(
+                ori_shape=ori_shape,
+                img_shape=img_shape,
+                pad_shape=pad_shape,
+                scale_factor=scale_factor,
+                flip=flip)
+           
+            _gt_masks = self.mask_transform(gt_masks, img_shape,
+                                                scale_factor, flip)
+    
+            return _img, _img_meta, _gt_masks
+
+        imgs = []
+        img_metas = []
+        gt_masks = []
+        for scale in self.img_scales:
+            _img, _img_meta, _gt_masks = prepare_single(
+                img, scale, False)
+            imgs.append(_img)
+            img_metas.append(DC(_img_meta, cpu_only=True))
+            if self.flip_ratio > 0:
+                _img, _img_meta, _gt_masks = prepare_single(
+                    img, scale, True, proposal)
+                imgs.append(_img)
+                img_metas.append(DC(_img_meta, cpu_only=True))
+                gt_masks.append(_gt_masks)
+
+        data = dict(img=imgs, img_meta=img_metas)
+        return data, gt_masks
+
+    def get_train_or_val_image_ids(self, data_root):
+        """
+            Training mode, sort all image ids alphabatically and take the first 9/10 
+        """
+        masks_rle = pd.read_csv(os.path.join(data_root, 'train_ship_segmentations_v2.csv'))
+        all_image_ids = list(set(masks_rle['ImageId'].tolist()))
+        all_image_ids.sort()   # sort in alphabatically order
+        print('total image count: ', len(all_image_ids))
+        # val is slow, do not eval on more than 500 images
+        cutoff = len(all_image_ids) - 500
+        train_imgs = all_image_ids[:cutoff]
+        val_imgs = all_image_ids[cutoff:]
+        if not self.val_mode:
+            print('number of training images: ', len(train_imgs))
+            print('Train images are like: ', train_imgs[:10])
+            return os.path.join(data_root, 'train_v2'), train_imgs
+        else:
+            print('number of validation images: ', len(val_imgs))
+            print('Val images are like: ', val_imgs[:10])
+            return os.path.join(data_root, 'train_v2'), val_imgs
         
     def get_all_test_image_ids(self, data_root):
         imgs = os.listdir(os.path.join(data_root, 'test_v2'))        

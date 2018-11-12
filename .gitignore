@@ -111,4 +111,4 @@ data
 
 # jupyternotebook
 *.ipynb
-
+baseline_model/

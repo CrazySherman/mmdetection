@@ -2,6 +2,7 @@ import os
 import os.path as osp
 import shutil
 import time
+from itertools import chain
 
 import mmcv
 import numpy as np
@@ -9,6 +10,8 @@ import torch
 from mmcv.runner import Hook, obj_from_dict
 from mmcv.parallel import scatter, collate
 from pycocotools.cocoeval import COCOeval
+import pycocotools.mask as mask_util
+
 from torch.utils.data import Dataset
 
 from .coco_utils import results2json, fast_eval_recall
@@ -144,3 +147,95 @@ class CocoDistEvalmAPHook(DistEvalHook):
             runner.log_buffer.output[field] = cocoEval.stats[0]
         runner.log_buffer.ready = True
         os.remove(tmp_file)
+
+
+
+# refer to the notebook airbusdataset.ipynb
+def IoU(pred, targs):
+    pred = (pred > 0.5).astype(float)
+    intersection = (pred*targs).sum()
+    return intersection / ((pred+targs).sum() - intersection + 1.0)
+
+def get_score(pred, true):
+    n_th = 10
+    b = 4
+    thresholds = [0.5 + 0.05*i for i in range(n_th)]
+    n_masks = len(true)
+    n_pred = len(pred)
+    ious = []
+    score = 0
+    for mask in true:
+        buf = []
+        for p in pred: buf.append(IoU(p,mask))
+        ious.append(buf)
+    for t in thresholds:   
+        tp, fp, fn = 0, 0, 0
+        for i in range(n_masks):
+            match = False
+            for j in range(n_pred):
+                if ious[i][j] > t: match = True
+            if not match: fn += 1
+        
+        for j in range(n_pred):
+            match = False
+            for i in range(n_masks):
+                if ious[i][j] > t: match = True
+            if match: tp += 1
+            else: fp += 1
+        score += ((b+1)*tp)/((b+1)*tp + b*fn + fp)       
+    return score/n_th
+
+class AirbusEvalF2ScoreHook(Hook):
+    """
+        Eval hook used by airbus dataset as validation indicator during training
+    """
+    def __init__(self, dataset, interval=1000):
+        if isinstance(dataset, Dataset):
+            self.dataset = dataset
+        elif isinstance(dataset, dict):
+            self.dataset = obj_from_dict(dataset, datasets,
+                                         {'val_mode': True})
+        else:
+            raise TypeError(
+                'dataset must be a Dataset object or a dict, not {}'.format(
+                    type(dataset)))
+        self.interval = interval
+        self.dataset = dataset
+
+    def after_train_iter(self, runner, n):
+        """
+            after <interval> iterations, run eval
+        """
+        if self.every_n_inner_iters(runner, self.interval):
+            #do the fucking evaluation
+            runner.model.eval()
+            scores = []
+            prog_bar = mmcv.ProgressBar(len(self.dataset))
+            num_empty_ships = 0
+            num_pred_empty_ships = 0
+            for idx in range(len(self.dataset)):
+                data, gt_masks = self.dataset[idx]
+                with torch.no_grad():
+                    result = runner.model(return_loss=False, rescale=True, **data)
+                assert type(gt_masks) == list
+                # evaluate on each image in batch
+                # assert batch size of input - output are aligned 
+                assert len(gt_masks) == len(results[1])
+                for i, mask_res in enumerate(result[1]):
+                    if len(gt_masks[i]) == 0:
+                        num_empty_ships += 1
+                    # result structure:
+                    pred_masks_rle = list(chain.from_iterable(mask_res))
+                    if len(pred_masks_rle) == 0:
+                        num_pred_empty_ships += 1
+                    else:
+                        assert type(pred_masks_rle[0]) == str
+
+                    pred_masks = [mask_util.decode(m) for m in pred_masks_rle]
+                    scores.append(get_score(pred_masks, gt_masks[i]))
+                # cur batch has finished
+                prog_bar.update()
+
+            runner.logger.info('finshed evaluation on {} number of images; empty ships: {}'.format(len(scores), num_empty_ships))
+            runner.logger.info('evaluation score: {}'.format(np.array(scores).mean()))
+

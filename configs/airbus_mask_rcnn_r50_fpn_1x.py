@@ -110,7 +110,6 @@ data = dict(
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
-        #TODO figure this out, MaskCNN uplift the resolution for a reason
         img_scale=(1333, 800),    
         data_root=data_root,  
         img_norm_cfg=img_norm_cfg,
@@ -118,15 +117,18 @@ data = dict(
         flip_ratio=0.5),
     val=dict(
         type=dataset_type,
+        data_root=data_root,
         img_scale=(1333, 800),
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
-        flip_ratio=0)
+        flip_ratio=0,
+        val_mode=True)
    )
 # optimizer
 #figure out learning rate...one GPU should be 0.002 from their official benchmark
 optimizer = dict(type='SGD', lr=0.004, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+val_interval = 10
 # learning policy
 lr_config = dict(
     policy='step',
