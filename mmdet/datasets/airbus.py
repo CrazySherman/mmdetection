@@ -281,7 +281,7 @@ class AirbusKaggle(Dataset):
     def prepare_test_img(self, idx):
         img = mmcv.imread(os.path.join(self.img_root, self.img_ids[idx]))
         ori_shape = img.shape
-        def prepare_single(img, scale, flip, proposal=None):
+        def prepare_single(img, scale, flip):
             """
                 transform to predefined size and scale
             """
@@ -294,31 +294,18 @@ class AirbusKaggle(Dataset):
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
                 flip=flip)
-            if proposal is not None:
-                if proposal.shape[1] == 5:
-                    score = proposal[:, 4]
-                    proposal = proposal[:, :4]
-                else:
-                    score = None
-                _proposal = self.bbox_transform(proposal, img_shape,
-                                                scale_factor, flip)
-                _proposal = np.hstack([_proposal, score[:, None]
-                                       ]) if score is not None else _proposal
-                _proposal = to_tensor(_proposal)
-            else:
-                _proposal = None
-            return _img, _img_meta, _proposal
+            return _img, _img_meta
 
         imgs = []
         img_metas = []
         for scale in self.img_scales:
-            _img, _img_meta, _proposal = prepare_single(
+            _img, _img_meta = prepare_single(
                 img, scale, False)
             imgs.append(_img)
             img_metas.append(DC(_img_meta, cpu_only=True))
             if self.flip_ratio > 0:
-                _img, _img_meta, _proposal = prepare_single(
-                    img, scale, True, proposal)
+                _img, _img_meta = prepare_single(
+                    img, scale, True)
                 imgs.append(_img)
                 img_metas.append(DC(_img_meta, cpu_only=True))
 

@@ -122,7 +122,15 @@ data = dict(
         img_norm_cfg=img_norm_cfg,
         size_divisor=32,
         flip_ratio=0,
-        val_mode=True)
+        val_mode=True),
+    test=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_scale=(1333, 800),
+        img_norm_cfg=img_norm_cfg,
+        size_divisor=32,
+        flip_ratio=0,
+        test_mode=True),
    )
 # optimizer
 #figure out learning rate...one GPU should be 0.002 from their official benchmark
@@ -147,10 +155,10 @@ log_config = dict(
 # yapf:enable
 # runtime settings
 # this dataset converges much faster than coco, 5 epochs are good enough
-total_epochs = 5
+total_epochs = 6
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/airbus_mask_rcnn_r50_fpn_1x'
 load_from = None
-resume_from = './airbus_r1/epoch_3.pth'
+resume_from = './airbus_r1/epoch_5.pth'
 workflow = [('train', 1)]
