@@ -11,6 +11,7 @@ from .transforms import (ImageTransform, BboxTransform, MaskTransform,
                          Numpy2Tensor)
 from .utils import to_tensor, show_ann, random_scale
 import pandas as pd 
+from sklearn.model_selection import train_test_split
 from skimage.measure import label, regionprops
 
 
@@ -293,6 +294,7 @@ class AirbusKaggle(Dataset):
                 img_shape=img_shape,
                 pad_shape=pad_shape,
                 scale_factor=scale_factor,
+                image_id =self.img_ids[idx],
                 flip=flip)
             return _img, _img_meta
 
@@ -367,9 +369,8 @@ class AirbusKaggle(Dataset):
         all_image_ids.sort()   # sort in alphabatically order
         print('total image count: ', len(all_image_ids))
         # val is slow, do not eval on more than 500 images
-        cutoff = len(all_image_ids) - 500
-        train_imgs = all_image_ids[:cutoff]
-        val_imgs = all_image_ids[cutoff:]
+        val_size = 1000
+        train_imgs, val_ims = train_test_split(all_image_ids, test_size=val_size, random_state=99)
         if not self.val_mode:
             print('number of training images: ', len(train_imgs))
             print('Train images are like: ', train_imgs[:10])
