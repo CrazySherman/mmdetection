@@ -80,6 +80,8 @@ class BBoxHead(nn.Module):
     def loss(self, cls_score, bbox_pred, labels, label_weights, bbox_targets,
              bbox_weights):
         losses = dict()
+        #print('[RCNN]:: bbox gt labels dist: total {} pos {}'.format(len(labels), sum(labels)))
+        
         if cls_score is not None:
             losses['loss_cls'] = weighted_cross_entropy(
                 cls_score, labels, label_weights)

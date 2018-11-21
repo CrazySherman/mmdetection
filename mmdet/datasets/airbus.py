@@ -370,7 +370,7 @@ class AirbusKaggle(Dataset):
         print('total image count: ', len(all_image_ids))
         # val is slow, do not eval on more than 500 images
         val_size = 1000
-        train_imgs, val_ims = train_test_split(all_image_ids, test_size=val_size, random_state=99)
+        train_imgs, val_imgs = train_test_split(all_image_ids, test_size=val_size, random_state=99)
         if not self.val_mode:
             print('number of training images: ', len(train_imgs))
             print('Train images are like: ', train_imgs[:10])

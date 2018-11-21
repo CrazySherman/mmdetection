@@ -124,6 +124,7 @@ class RPNHead(nn.Module):
                     bbox_targets, bbox_weights, num_total_samples, cfg):
         # classification loss
         labels = labels.contiguous().view(-1)
+        #print('labels dist for this fpn layer: total  {} ; pos: {}'.format(len(labels), labels.sum()))
         label_weights = label_weights.contiguous().view(-1)
         if self.use_sigmoid_cls:
             rpn_cls_score = rpn_cls_score.permute(0, 2, 3,
@@ -133,6 +134,9 @@ class RPNHead(nn.Module):
             rpn_cls_score = rpn_cls_score.permute(0, 2, 3,
                                                   1).contiguous().view(-1, 2)
             criterion = weighted_cross_entropy
+
+        #print('predicted anchor box scores: mean {} std: {} max {} min{} '.format(
+         #      rpn_cls_score.mean(), rpn_cls_score.std(), rpn_cls_score.max(), rpn_cls_score.min()))
         loss_cls = criterion(
             rpn_cls_score, labels, label_weights, avg_factor=num_total_samples)
         # regression loss
@@ -181,6 +185,9 @@ class RPNHead(nn.Module):
                                                      self.anchor_strides[idx])
             for idx in range(len(featmap_sizes))
         ]
+        #print('[RPN]:: feature map sizes: ', featmap_sizes)
+        #print('[RPN]:: number of anchors: ', sum([len(a) for a in mlvl_anchors]))
+        #print('[RPN]:: anchor sizes are like: ', [a[0].size() for a in mlvl_anchors])
         proposal_list = []
         for img_id in range(num_imgs):
             rpn_cls_score_list = [

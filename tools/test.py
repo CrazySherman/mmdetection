@@ -18,9 +18,8 @@ def single_test(model, data_loader, show=False):
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=not show, **data)
-        if 'image_id' in data['img_meta'][0]:
-            image_id = data['img_meta'][0]['image_id']
-            print('finished image: ', image_id)
+            image_id = data['img_meta'][0].data[0][0]['image_id']
+            #print('finished image: ', image_id)
             result = (image_id, result)
         results.append(result)
 
